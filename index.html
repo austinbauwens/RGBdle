@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RGB Wordle</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>RGB Wordle</h1>
+            <p class="subtitle">Guess the RGB values!</p>
+        </header>
+
+        <div class="game-area">
+            <div class="color-preview">
+                <div class="target-color" id="targetColor"></div>
+            </div>
+
+            <div class="guesses-container" id="guessesContainer">
+                <!-- Guess rows will be generated here -->
+            </div>
+
+            <div class="current-guess-section">
+                <h3>Your Guess</h3>
+                <div class="current-guess">
+                    <div class="current-color-preview" id="currentColorPreview"></div>
+                    <div class="current-rgb-display" id="currentRgbDisplay">RGB(---, ---, ---)</div>
+                    <div class="current-rgb" id="currentGuess">
+                        <!-- Current input cells will be generated here -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="message-area" id="messageArea"></div>
+
+            <div class="controls">
+                <button class="btn-submit" id="submitBtn" disabled>Submit</button>
+                <button class="btn-new-game" id="newGameBtn">New Game</button>
+            </div>
+
+            <div class="keyboard-hint">
+                <p>Type 9 digits for RGB (0-255 each: RRRGGGBBB) and press Enter to submit</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
+
