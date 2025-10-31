@@ -8,36 +8,86 @@
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>RGB Wordle</h1>
-            <p class="subtitle">Guess the RGB values!</p>
-        </header>
-
         <div class="game-area">
-            <div class="color-preview">
-                <div class="target-color" id="targetColor"></div>
-            </div>
-
-            <div class="guesses-container" id="guessesContainer">
-                <!-- Guess rows will be generated here -->
-            </div>
-
-            <div class="current-guess-section">
-                <h3>Your Guess</h3>
-                <div class="current-guess">
-                    <div class="current-color-preview" id="currentColorPreview"></div>
-                    <div class="current-rgb-display" id="currentRgbDisplay">RGB(---, ---, ---)</div>
-                    <div class="current-rgb" id="currentGuess">
-                        <!-- Current input cells will be generated here -->
+            <header>
+                <h1>RGB Wordle</h1>
+                <p class="subtitle">Guess the RGB values!</p>
+            </header>
+            <div class="color-comparison">
+                <div class="color-preview-wrapper">
+                    <div class="color-label">Target Color</div>
+                    <div class="color-preview">
+                        <div class="target-color" id="targetColor"></div>
+                    </div>
+                </div>
+                <div class="color-preview-wrapper">
+                    <div class="color-label">Your Guess</div>
+                    <div class="color-preview">
+                        <div class="current-color-preview" id="currentColorPreview"></div>
                     </div>
                 </div>
             </div>
 
-            <div class="message-area" id="messageArea"></div>
+            <div class="current-guess-section">
+                <div class="current-guess-wrapper">
+                    <div class="numpad-container">
+                        <div class="numpad" id="numpad">
+                            <button class="numpad-btn" data-digit="1">1</button>
+                            <button class="numpad-btn" data-digit="2">2</button>
+                            <button class="numpad-btn" data-digit="3">3</button>
+                            <button class="numpad-btn" data-digit="4">4</button>
+                            <button class="numpad-btn" data-digit="5">5</button>
+                            <button class="numpad-btn" data-digit="6">6</button>
+                            <button class="numpad-btn" data-digit="7">7</button>
+                            <button class="numpad-btn" data-digit="8">8</button>
+                            <button class="numpad-btn" data-digit="9">9</button>
+                            <button class="numpad-btn numpad-backspace" id="numpadBackspace">⌫</button>
+                            <button class="numpad-btn" data-digit="0">0</button>
+                            <button class="numpad-btn numpad-enter" id="numpadEnter">↵</button>
+                        </div>
+                    </div>
+                    <div class="current-guess">
+                        <div class="current-rgb-display" id="currentRgbDisplay">RGB(---, ---, ---)</div>
+                        <div class="rgb-input-groups">
+                            <div class="rgb-input-group">
+                                <div class="rgb-group-label">R</div>
+                                <div class="rgb-digits" data-component="r">
+                                    <!-- R digits will be generated here -->
+                                </div>
+                                <div class="rgb-progress-bar" data-component="r">
+                                    <div class="rgb-progress-fill" data-component="r"></div>
+                                </div>
+                            </div>
+                            <div class="rgb-input-group">
+                                <div class="rgb-group-label">G</div>
+                                <div class="rgb-digits" data-component="g">
+                                    <!-- G digits will be generated here -->
+                                </div>
+                                <div class="rgb-progress-bar" data-component="g">
+                                    <div class="rgb-progress-fill" data-component="g"></div>
+                                </div>
+                            </div>
+                            <div class="rgb-input-group">
+                                <div class="rgb-group-label">B</div>
+                                <div class="rgb-digits" data-component="b">
+                                    <!-- B digits will be generated here -->
+                                </div>
+                                <div class="rgb-progress-bar" data-component="b">
+                                    <div class="rgb-progress-fill" data-component="b"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-            <div class="controls">
-                <button class="btn-submit" id="submitBtn" disabled>Submit</button>
-                <button class="btn-new-game" id="newGameBtn">New Game</button>
+            <div class="guesses-container" id="guessesContainer">
+                <!-- Guess rows will be generated here -->
+                <div class="message-area" id="messageArea"></div>
+                <div class="controls">
+                    <button class="btn-submit" id="submitBtn" disabled>Submit</button>
+                    <button class="btn-new-game" id="newGameBtn">New Game</button>
+                </div>
             </div>
 
             <div class="keyboard-hint">

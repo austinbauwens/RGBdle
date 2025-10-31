@@ -9,10 +9,248 @@ class RGBWordleGame {
         this.maxAttempts = 6;
         this.gameOver = false;
         this.won = false;
+        this.audioContext = null;
+        this.soundFiles = {
+            typing: 'sounds/typing.wav',
+            win: 'sounds/win.wav',
+            veryClose: 'sounds/very-close.wav',
+            close: 'sounds/close.wav',
+            far: 'sounds/far.wav'
+        };
+        this.audioBuffers = {};
 
         this.initializeElements();
         this.setupEventListeners();
         this.updateDisplay();
+        this.initAudio();
+    }
+
+    initAudio() {
+        // Initialize audio context (needs user interaction, so lazy init)
+        try {
+            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        } catch (e) {
+            console.warn('Web Audio API not supported');
+        }
+        
+        // Preload sound files if they exist
+        this.preloadSounds();
+    }
+
+    async preloadSounds() {
+        if (!this.audioContext) return;
+        
+        for (const [key, path] of Object.entries(this.soundFiles)) {
+            try {
+                const response = await fetch(path);
+                if (response.ok) {
+                    const arrayBuffer = await response.arrayBuffer();
+                    const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+                    this.audioBuffers[key] = audioBuffer;
+                }
+            } catch (e) {
+                // Sound file doesn't exist, will fall back to programmatic sounds
+                console.log(`Sound file not found: ${path}, using programmatic sound`);
+            }
+        }
+    }
+
+    playSoundFile(soundKey) {
+        if (!this.audioContext || !this.audioBuffers[soundKey]) {
+            return false; // File not loaded, return false to use fallback
+        }
+        
+        this.ensureAudioContext();
+        
+        try {
+            const source = this.audioContext.createBufferSource();
+            const gainNode = this.audioContext.createGain();
+            
+            source.buffer = this.audioBuffers[soundKey];
+            source.connect(gainNode);
+            gainNode.connect(this.audioContext.destination);
+            
+            gainNode.gain.setValueAtTime(0.5, this.audioContext.currentTime);
+            
+            source.start(0);
+            return true;
+        } catch (e) {
+            console.warn(`Error playing sound file: ${soundKey}`, e);
+            return false;
+        }
+    }
+
+    ensureAudioContext() {
+        if (!this.audioContext) {
+            this.initAudio();
+        }
+        // AudioContext needs to be resumed after user interaction
+        if (this.audioContext && this.audioContext.state === 'suspended') {
+            this.audioContext.resume();
+        }
+    }
+
+    // Minimal, satisfying typing sound
+    playTypingSound() {
+        // Try to play sound file first, fall back to programmatic sound
+        if (this.playSoundFile('typing')) {
+            return;
+        }
+        
+        // Fallback to programmatic sound
+        if (!this.audioContext) return;
+        this.ensureAudioContext();
+
+        const oscillator = this.audioContext.createOscillator();
+        const gainNode = this.audioContext.createGain();
+
+        oscillator.connect(gainNode);
+        gainNode.connect(this.audioContext.destination);
+
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(800, this.audioContext.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(600, this.audioContext.currentTime + 0.05);
+
+        gainNode.gain.setValueAtTime(0.15, this.audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.05);
+
+        oscillator.start(this.audioContext.currentTime);
+        oscillator.stop(this.audioContext.currentTime + 0.05);
+    }
+
+    // Satisfying win sound - arpeggio with major chord
+    playWinSound() {
+        // Try to play sound file first, fall back to programmatic sound
+        if (this.playSoundFile('win')) {
+            return;
+        }
+        
+        // Fallback to programmatic sound
+        if (!this.audioContext) return;
+        this.ensureAudioContext();
+
+        const now = this.audioContext.currentTime;
+        
+        // Major chord: C4, E4, G4 (261.63, 329.63, 392.00 Hz)
+        const frequencies = [523.25, 659.25, 783.99]; // C5, E5, G5 (one octave higher for more satisfying sound)
+        
+        frequencies.forEach((freq, index) => {
+            const oscillator = this.audioContext.createOscillator();
+            const gainNode = this.audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(this.audioContext.destination);
+            
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(freq, now);
+            
+            const startTime = now + (index * 0.1); // Staggered start for arpeggio effect
+            const duration = 0.4;
+            
+            gainNode.gain.setValueAtTime(0, startTime);
+            gainNode.gain.linearRampToValueAtTime(0.25, startTime + 0.05);
+            gainNode.gain.linearRampToValueAtTime(0.2, startTime + duration - 0.1);
+            gainNode.gain.linearRampToValueAtTime(0, startTime + duration);
+            
+            oscillator.start(startTime);
+            oscillator.stop(startTime + duration);
+        });
+    }
+
+    // Sound for very close guesses (>80% match) - pleasant ascending major third
+    playVeryCloseSound() {
+        // Try to play sound file first, fall back to programmatic sound
+        if (this.playSoundFile('veryClose')) {
+            return;
+        }
+        
+        // Fallback to programmatic sound
+        if (!this.audioContext) return;
+        this.ensureAudioContext();
+
+        const now = this.audioContext.currentTime;
+        const oscillator1 = this.audioContext.createOscillator();
+        const oscillator2 = this.audioContext.createOscillator();
+        const gainNode = this.audioContext.createGain();
+
+        oscillator1.connect(gainNode);
+        oscillator2.connect(gainNode);
+        gainNode.connect(this.audioContext.destination);
+
+        // Major third interval for pleasant sound
+        oscillator1.type = 'sine';
+        oscillator2.type = 'sine';
+        oscillator1.frequency.setValueAtTime(523.25, now); // C5
+        oscillator1.frequency.exponentialRampToValueAtTime(659.25, now + 0.25); // E5
+        oscillator2.frequency.setValueAtTime(659.25, now); // E5
+        oscillator2.frequency.exponentialRampToValueAtTime(783.99, now + 0.25); // G5
+
+        gainNode.gain.setValueAtTime(0, now);
+        gainNode.gain.linearRampToValueAtTime(0.22, now + 0.05);
+        gainNode.gain.linearRampToValueAtTime(0, now + 0.25);
+
+        oscillator1.start(now);
+        oscillator1.stop(now + 0.25);
+        oscillator2.start(now);
+        oscillator2.stop(now + 0.25);
+    }
+
+    // Sound for close guesses (50-80% match) - neutral tone, slight rise
+    playCloseSound() {
+        // Try to play sound file first, fall back to programmatic sound
+        if (this.playSoundFile('close')) {
+            return;
+        }
+        
+        // Fallback to programmatic sound
+        if (!this.audioContext) return;
+        this.ensureAudioContext();
+
+        const oscillator = this.audioContext.createOscillator();
+        const gainNode = this.audioContext.createGain();
+
+        oscillator.connect(gainNode);
+        gainNode.connect(this.audioContext.destination);
+
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(440, this.audioContext.currentTime); // A4
+        oscillator.frequency.exponentialRampToValueAtTime(494, this.audioContext.currentTime + 0.18); // B4
+
+        gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0.18, this.audioContext.currentTime + 0.05);
+        gainNode.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + 0.18);
+
+        oscillator.start(this.audioContext.currentTime);
+        oscillator.stop(this.audioContext.currentTime + 0.18);
+    }
+
+    // Sound for far guesses (<50% match) - lower, more dissonant descending tone
+    playFarSound() {
+        // Try to play sound file first, fall back to programmatic sound
+        if (this.playSoundFile('far')) {
+            return;
+        }
+        
+        // Fallback to programmatic sound
+        if (!this.audioContext) return;
+        this.ensureAudioContext();
+
+        const oscillator = this.audioContext.createOscillator();
+        const gainNode = this.audioContext.createGain();
+
+        oscillator.connect(gainNode);
+        gainNode.connect(this.audioContext.destination);
+
+        oscillator.type = 'triangle'; // Triangle wave for slightly harsher sound
+        oscillator.frequency.setValueAtTime(277.18, this.audioContext.currentTime); // C#4 (lower)
+        oscillator.frequency.exponentialRampToValueAtTime(220, this.audioContext.currentTime + 0.22); // A3 (even lower)
+
+        gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0.15, this.audioContext.currentTime + 0.05);
+        gainNode.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + 0.22);
+
+        oscillator.start(this.audioContext.currentTime);
+        oscillator.stop(this.audioContext.currentTime + 0.22);
     }
     
     getInitialGuess() {
@@ -72,12 +310,25 @@ class RGBWordleGame {
     initializeElements() {
         this.targetColorEl = document.getElementById('targetColor');
         this.guessesContainerEl = document.getElementById('guessesContainer');
-        this.currentGuessEl = document.getElementById('currentGuess');
+        this.currentGuessEl = document.getElementById('currentGuess'); // Keep for backward compatibility
+        this.rgbDigitsEls = {
+            r: document.querySelector('.rgb-digits[data-component="r"]'),
+            g: document.querySelector('.rgb-digits[data-component="g"]'),
+            b: document.querySelector('.rgb-digits[data-component="b"]')
+        };
+        this.rgbProgressFills = {
+            r: document.querySelector('.rgb-progress-fill[data-component="r"]'),
+            g: document.querySelector('.rgb-progress-fill[data-component="g"]'),
+            b: document.querySelector('.rgb-progress-fill[data-component="b"]')
+        };
         this.currentColorPreviewEl = document.getElementById('currentColorPreview');
         this.currentRgbDisplayEl = document.getElementById('currentRgbDisplay');
         this.submitBtnEl = document.getElementById('submitBtn');
         this.newGameBtnEl = document.getElementById('newGameBtn');
         this.messageAreaEl = document.getElementById('messageArea');
+        this.numpadEl = document.getElementById('numpad');
+        this.numpadBackspaceEl = document.getElementById('numpadBackspace');
+        this.numpadEnterEl = document.getElementById('numpadEnter');
 
         // Set target color
         const rgb = this.parseRGBString(this.answer);
@@ -90,13 +341,15 @@ class RGBWordleGame {
         document.body.style.background = targetColor;
         document.body.style.backgroundColor = targetColor;
         
-        // Calculate brightness for text contrast
-        const brightness = (rgb.r * 299 + rgb.g * 587 + rgb.b * 114) / 1000;
-        const textColor = brightness > 128 ? '#333' : '#fff';
-        document.body.style.color = textColor;
+        // Calculate best text color for contrast (WCAG compliant)
+        const bestTextColor = this.getBestTextColor(rgb);
+        const textColorHex = this.rgbToHex(bestTextColor.r, bestTextColor.g, bestTextColor.b);
+        
+        // Update body and container text color
+        document.body.style.color = textColorHex;
         const container = document.querySelector('.container');
         if (container) {
-            container.style.color = textColor;
+            container.style.color = textColorHex;
         }
     }
 
@@ -131,7 +384,46 @@ class RGBWordleGame {
         return `RGB(${rgb.r}, ${rgb.g}, ${rgb.b})`;
     }
 
+    // Calculate relative luminance per WCAG 2.1
+    getRelativeLuminance(r, g, b) {
+        const [rs, gs, bs] = [r, g, b].map(val => {
+            val = val / 255;
+            return val <= 0.03928 ? val / 12.92 : Math.pow((val + 0.055) / 1.055, 2.4);
+        });
+        return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs;
+    }
+
+    // Calculate contrast ratio per WCAG 2.1
+    getContrastRatio(color1Rgb, color2Rgb) {
+        const l1 = this.getRelativeLuminance(color1Rgb.r, color1Rgb.g, color1Rgb.b);
+        const l2 = this.getRelativeLuminance(color2Rgb.r, color2Rgb.g, color2Rgb.b);
+        const lighter = Math.max(l1, l2);
+        const darker = Math.min(l1, l2);
+        return (lighter + 0.05) / (darker + 0.05);
+    }
+
+    // Get best text color (white or black) for background based on contrast
+    getBestTextColor(backgroundColorRgb) {
+        const white = { r: 255, g: 255, b: 255 };
+        const black = { r: 0, g: 0, b: 0 };
+        
+        const whiteContrast = this.getContrastRatio(backgroundColorRgb, white);
+        const blackContrast = this.getContrastRatio(backgroundColorRgb, black);
+        
+        // Return the color with higher contrast ratio (meets WCAG AA for large text if >= 3:1)
+        return whiteContrast > blackContrast ? white : black;
+    }
+
     setupEventListeners() {
+        // Initialize audio on first user interaction
+        const initAudioOnInteraction = () => {
+            this.ensureAudioContext();
+            document.removeEventListener('click', initAudioOnInteraction);
+            document.removeEventListener('keydown', initAudioOnInteraction);
+        };
+        document.addEventListener('click', initAudioOnInteraction);
+        document.addEventListener('keydown', initAudioOnInteraction);
+
         // Keyboard input
         document.addEventListener('keydown', (e) => this.handleKeyPress(e));
 
@@ -141,6 +433,24 @@ class RGBWordleGame {
         // New game button
         this.newGameBtnEl.addEventListener('click', () => this.newGame());
 
+        // Numpad buttons
+        const numpadButtons = this.numpadEl.querySelectorAll('.numpad-btn[data-digit]');
+        numpadButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const digit = btn.getAttribute('data-digit');
+                this.addCharacter(digit);
+            });
+        });
+
+        // Numpad backspace
+        this.numpadBackspaceEl.addEventListener('click', () => {
+            this.removeLastCharacter();
+        });
+
+        // Numpad enter
+        this.numpadEnterEl.addEventListener('click', () => {
+            this.submitGuess();
+        });
     }
 
     handleKeyPress(e) {
@@ -164,6 +474,43 @@ class RGBWordleGame {
         }
     }
 
+    // Validate if a digit can be placed at a given position (RGB values are 0-255)
+    isValidDigit(digit, position, guessArray) {
+        const digitValue = parseInt(digit);
+        
+        // Determine which component this position belongs to (R, G, or B)
+        const componentStart = Math.floor(position / 3) * 3;
+        const positionInComponent = position % 3; // 0 = hundreds, 1 = tens, 2 = ones
+        
+        // Get current digits for this component
+        const hundreds = guessArray[componentStart] !== ' ' ? parseInt(guessArray[componentStart]) : null;
+        const tens = guessArray[componentStart + 1] !== ' ' ? parseInt(guessArray[componentStart + 1]) : null;
+        
+        if (positionInComponent === 0) {
+            // First digit (hundreds): can only be 0, 1, or 2
+            return digitValue >= 0 && digitValue <= 2;
+        } else if (positionInComponent === 1) {
+            // Second digit (tens)
+            if (hundreds === 2) {
+                // If hundreds is 2, tens can only be 0-5 (since max is 255)
+                return digitValue >= 0 && digitValue <= 5;
+            } else {
+                // If hundreds is 0 or 1, or doesn't exist yet, tens can be 0-9
+                return digitValue >= 0 && digitValue <= 9;
+            }
+        } else {
+            // Third digit (ones)
+            // Check if we have "25" already (both hundreds and tens exist and form 25)
+            if (hundreds === 2 && tens !== null && tens === 5) {
+                // If we have 25X, ones can only be 0-5 (since max is 255)
+                return digitValue >= 0 && digitValue <= 5;
+            } else {
+                // Otherwise, ones can be 0-9
+                return digitValue >= 0 && digitValue <= 9;
+            }
+        }
+    }
+
     addCharacter(char) {
         // Find the first empty position (space) that is not fixed
         const guessArray = this.currentGuess.split('');
@@ -177,11 +524,19 @@ class RGBWordleGame {
         const emptyIndex = guessArray.findIndex((c, idx) => (c === ' ' || !c) && !this.fixedPositions.has(idx));
         
         if (emptyIndex !== -1) {
+            // Validate if this digit can be placed at this position
+            if (!this.isValidDigit(char, emptyIndex, guessArray)) {
+                return; // Invalid digit for this position
+            }
+            
             guessArray[emptyIndex] = char;
             this.currentGuess = guessArray.join('');
             
+            // Play typing sound
+            this.playTypingSound();
+            
             // Add typing animation
-            const cell = this.currentGuessEl.children[emptyIndex];
+            const cell = this.getCellAtIndex(emptyIndex);
             if (cell) {
                 cell.classList.add('typing');
                 setTimeout(() => cell.classList.remove('typing'), 300);
@@ -190,6 +545,27 @@ class RGBWordleGame {
             this.updateCurrentGuessDisplay();
             this.updateSubmitButton();
         }
+    }
+
+    // Helper to get cell by index in the new grouped structure
+    getCellAtIndex(index) {
+        let component, localIndex;
+        if (index < 3) {
+            component = 'r';
+            localIndex = index;
+        } else if (index < 6) {
+            component = 'g';
+            localIndex = index - 3;
+        } else {
+            component = 'b';
+            localIndex = index - 6;
+        }
+        
+        const groupEl = this.rgbDigitsEls[component];
+        if (groupEl && groupEl.children[localIndex]) {
+            return groupEl.children[localIndex];
+        }
+        return null;
     }
 
     removeLastCharacter() {
@@ -208,12 +584,33 @@ class RGBWordleGame {
     }
 
     updateCurrentGuessDisplay() {
-        const cells = this.currentGuessEl.querySelectorAll('.current-cell');
-        cells.forEach((cell, index) => {
-            const char = this.currentGuess[index];
-            cell.textContent = (char && char !== ' ') ? char : '';
-            cell.classList.toggle('filled', (char && char !== ' '));
-        });
+        const guessArray = this.currentGuess.split('');
+        let hasChanges = false;
+        
+        // Clean up invalid digits that violate RGB constraints (0-255)
+        for (let i = 0; i < 9; i++) {
+            if (guessArray[i] && guessArray[i] !== ' ' && !this.fixedPositions.has(i)) {
+                if (!this.isValidDigit(guessArray[i], i, guessArray)) {
+                    // This digit is invalid, clear it
+                    guessArray[i] = ' ';
+                    hasChanges = true;
+                }
+            }
+        }
+        
+        if (hasChanges) {
+            this.currentGuess = guessArray.join('');
+        }
+        
+        // Update all cells in the grouped structure
+        for (let i = 0; i < 9; i++) {
+            const cell = this.getCellAtIndex(i);
+            if (cell) {
+                const char = this.currentGuess[i];
+                cell.textContent = (char && char !== ' ') ? char : '';
+                cell.classList.toggle('filled', (char && char !== ' '));
+            }
+        }
 
         // Update RGB display with actual digits (using 0 for missing)
         let display = 'RGB(';
@@ -255,6 +652,19 @@ class RGBWordleGame {
         const b = parseInt(bStr) || 0;
         const color = this.rgbToHex(r, g, b);
         this.currentColorPreviewEl.style.backgroundColor = color;
+
+        // Update progress bars (0-255, so percentage = value / 255 * 100)
+        const updateProgressBar = (component, value) => {
+            const fillEl = this.rgbProgressFills[component];
+            if (fillEl) {
+                const percentage = Math.min(100, Math.max(0, (value / 255) * 100));
+                fillEl.style.width = `${percentage}%`;
+            }
+        };
+
+        updateProgressBar('r', r);
+        updateProgressBar('g', g);
+        updateProgressBar('b', b);
     }
 
     rgbToHsl(r, g, b) {
@@ -317,7 +727,9 @@ class RGBWordleGame {
 
     updateSubmitButton() {
         const cleanGuess = this.currentGuess.replace(/\s/g, '');
-        this.submitBtnEl.disabled = cleanGuess.length !== 9 || this.gameOver;
+        const isDisabled = cleanGuess.length !== 9 || this.gameOver;
+        this.submitBtnEl.disabled = isDisabled;
+        this.numpadEnterEl.disabled = isDisabled;
     }
 
     submitGuess() {
@@ -350,6 +762,16 @@ class RGBWordleGame {
         this.currentGuess = nextGuess.join('');
         this.updateCurrentGuessDisplay();
         this.updateSubmitButton();
+
+        // Play sound based on closeness
+        const percentage = feedback.temperature.percentage;
+        if (percentage >= 80) {
+            this.playVeryCloseSound();
+        } else if (percentage >= 50) {
+            this.playCloseSound();
+        } else {
+            this.playFarSound();
+        }
 
         // Check win condition
         if (feedback.feedback.r.type === 'correct' && 
@@ -439,12 +861,14 @@ class RGBWordleGame {
     updateDisplay() {
         this.renderGuesses();
         this.renderCurrentGuess();
+        this.updateSubmitButton();
     }
 
     renderGuesses() {
         this.guessesContainerEl.innerHTML = '';
 
-        this.guesses.forEach((guessObj, guessIndex) => {
+        // Reverse the guesses array so newest appears first (directly below input)
+        [...this.guesses].reverse().forEach((guessObj, guessIndex) => {
             const row = document.createElement('div');
             row.className = 'guess-row';
 
@@ -563,37 +987,46 @@ class RGBWordleGame {
     }
 
     renderCurrentGuess() {
-        this.currentGuessEl.innerHTML = '';
+        // Clear all RGB digit groups
+        Object.values(this.rgbDigitsEls).forEach(groupEl => {
+            if (groupEl) groupEl.innerHTML = '';
+        });
 
-        // Create 9 cells in a row
-        for (let i = 0; i < 9; i++) {
-            const cell = document.createElement('div');
-            const char = this.currentGuess[i];
-            const isFixed = this.fixedPositions.has(i);
+        // Create cells grouped by R, G, B
+        const components = ['r', 'g', 'b'];
+        components.forEach((component, compIndex) => {
+            const groupEl = this.rgbDigitsEls[component];
+            if (!groupEl) return;
             
-            cell.className = 'current-cell';
-            if (isFixed) {
-                cell.classList.add('fixed');
+            // Create 3 cells for this component
+            for (let i = 0; i < 3; i++) {
+                const globalIndex = compIndex * 3 + i;
+                const char = this.currentGuess[globalIndex];
+                const isFixed = this.fixedPositions.has(globalIndex);
+                
+                const cell = document.createElement('div');
+                cell.className = 'current-cell';
+                if (isFixed) {
+                    cell.classList.add('fixed');
+                }
+                
+                cell.textContent = (char && char !== ' ') ? char : '';
+                if (char && char !== ' ') {
+                    cell.classList.add('filled');
+                }
+                
+                groupEl.appendChild(cell);
             }
-            
-            cell.textContent = (char && char !== ' ') ? char : '';
-            if (char && char !== ' ') {
-                cell.classList.add('filled');
-            } else {
-                cell.classList.remove('filled');
-            }
-            // Add visual separators between R, G, B groups
-            if (i === 3 || i === 6) {
-                cell.style.marginLeft = '8px';
-            }
-            this.currentGuessEl.appendChild(cell);
-        }
+        });
 
         // Update color preview and RGB display
         this.updateCurrentGuessDisplay();
     }
 
     handleWin() {
+        // Play satisfying win sound
+        this.playWinSound();
+        
         // Show win message
         const rgb = this.parseRGBString(this.answer);
         this.messageAreaEl.innerHTML = `<div class="win-message">🎉 Correct! The color is RGB(${rgb.r}, ${rgb.g}, ${rgb.b})</div>`;
@@ -754,20 +1187,22 @@ class RGBWordleGame {
         this.targetColorEl.style.backgroundColor = targetColor;
         this.targetColorEl.style.animation = '';
         this.messageAreaEl.innerHTML = '';
-        this.currentColorPreviewEl.style.backgroundColor = '#e5e7eb';
+        this.currentColorPreviewEl.style.backgroundColor = '#2a2a2a';
         this.currentRgbDisplayEl.textContent = 'RGB(---, ---, ---)';
         
         // Set background to exact same color value
         document.body.style.background = targetColor;
         document.body.style.backgroundColor = targetColor;
         
-        // Calculate brightness for text contrast
-        const brightness = (rgb.r * 299 + rgb.g * 587 + rgb.b * 114) / 1000;
-        const textColor = brightness > 128 ? '#333' : '#fff';
-        document.body.style.color = textColor;
+        // Calculate best text color for contrast (WCAG compliant)
+        const bestTextColor = this.getBestTextColor(rgb);
+        const textColorHex = this.rgbToHex(bestTextColor.r, bestTextColor.g, bestTextColor.b);
+        
+        // Update body and container text color
+        document.body.style.color = textColorHex;
         const container = document.querySelector('.container');
         if (container) {
-            container.style.color = textColor;
+            container.style.color = textColorHex;
         }
 
         this.updateDisplay();

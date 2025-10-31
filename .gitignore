@@ -4,3 +4,8 @@ node_modules/
 .vscode/
 .idea/
 
+# Generated sound files (game falls back to programmatic sounds)
+sounds/*.wav
+sounds/*.mp3
+generate_sounds.py
+
